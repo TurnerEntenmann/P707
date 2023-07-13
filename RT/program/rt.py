@@ -1,9 +1,13 @@
 import customtkinter as ctk
+import numpy as np
 import pyvisa
 import csv
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from customtkinter import filedialog
+from tkinter import messagebox
+from matplotlib import pyplot as plt
+from scipy.optimize import curve_fit
 
 def main():
     ''' Initializations '''
@@ -24,12 +28,18 @@ def main():
     global importData
     sessionData=[]
     importData=[]
-    multimeterV_P = pyvisa.ResourceManager().open_resource(resourceList[0])
-    multimeterV_P.write('DISP:TEXT "V_P"')
-    multimeterV_S = pyvisa.ResourceManager().open_resource(resourceList[1])
-    multimeterV_S.write('DISP:TEXT "V_S"')
-    multimeterVV_S = pyvisa.ResourceManager().open_resource(resourceList[2])
-    multimeterVV_S.write('DISP:TEXT "V - V_S"')
+    n_connections = len(resourceList)
+    if n_connections != 3:
+        messagebox.showerror("Connection Error", f"3 Connections Required\n{n_connections} Detected\n\nMake sure all multimeters are powered on and plugged in")
+        # TODO: comment out
+        # return 0
+    else:
+        multimeterV_P = pyvisa.ResourceManager().open_resource(resourceList[0])
+        multimeterV_P.write('DISP:TEXT "V_P"')
+        multimeterV_S = pyvisa.ResourceManager().open_resource(resourceList[1])
+        multimeterV_S.write('DISP:TEXT "V_S"')
+        multimeterVV_S = pyvisa.ResourceManager().open_resource(resourceList[2])
+        multimeterVV_S.write('DISP:TEXT "V - V_S"')
    
     ''' First Window '''
     def fix():
@@ -129,7 +139,8 @@ def main():
         VVs = column(sessionData,2)
        
         graphV_P = Figure(figsize=(3.5,3.5), dpi=100)
-        subV_P = graphV_P.add_subplot(111, xlabel="V - Vs (V)", ylabel="Vp (V)")
+        subV_P = graphV_P.add_subplot(111, xlabel="$V-V_s$ (V)", ylabel="$V_p$ (V)")
+        subV_P.spines[['right', 'top']].set_visible(False)
         subV_P.plot(VVs, Vp)
         graphV_P.set_layout_engine('constrained')
         canvasV_P = FigureCanvasTkAgg(graphV_P, master=graphGrid)
@@ -147,14 +158,61 @@ def main():
     def saveToFile():
         global sessionData
         filevariable = filename.get()
-        f = open(("C:/Users/student/Desktop/" + filevariable + ".csv"), 'w', newline='')
-        writer = csv.writer(f)
-        header = ["Vp", "Vs", "V - Vs"]
-        writer.writerow(header)
-        for i in range(len(sessionData)):
-            writer.writerow(sessionData[i])
-        f.close()
+        # force .csv
+        if ".csv" not in filevariable:
+            messagebox.showerror("File Type Error", "Make sure to include '.csv' in the filename")
+        else:
+            # allows writing to other dirs
+            if "C:/" not in filevariable:
+                f = open(("C:/Users/student/Desktop/" + filevariable + ".csv"), 'w', newline='')
+            else:
+                f = open(filevariable + ".csv", "w", newline="")
+            writer = csv.writer(f)
+            header = ["Vp", "Vs", "V - Vs"]
+            writer.writerow(header)
+            for i in range(len(sessionData)):
+                writer.writerow(sessionData[i])
+            f.close()
+
+    # fxn for plotting
+    def get_ax(figsize=(6,4), fsize=15):
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        return ax, fsize
+
+    #TODO: make_igraph
+    # isave_to_file
+    # button to gen graph
+    # make dir to collect data / figs
+
+    #global sessionData
+    #Vp = column(sessionData,0)
+    #Vs = column(sessionData,1)
+    #VVs = column(sessionData,2)
+
+    def make_igraph():
+        global sessionData
+        Vp = column(sessionData,0)
+        Vs = column(sessionData,1)
+        VVs = column(sessionData,2)
+
+        rp = float(Rp.get())
+        fs = float()
+       
+        graphI_P = Figure(figsize=(3.5,3.5), dpi=100)
+        subI_P = graphI_P.add_subplot(111, xlabel="$V-V_s$ (V)", ylabel="$I_p$ (A)", fontsize=float(fs))
+        subI_P.spines[['right', 'top']].set_visible(False)
+
+        subI_P.plot(np.sqrt(VVs), Vp / rp)
+        graphI_P.set_layout_engine('constrained')
+        canvasI_P = FigureCanvasTkAgg(graphI_P, master=graphGrid)
+        canvasI_P.draw()
+        canvasI_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)
    
+    def isave_to_file():
+        pass
+
     ''' Main Page Configuration '''
     mainPage = tabControl.add("Main Application")
     mainPage.rowconfigure(10, weight=1)
@@ -176,6 +234,94 @@ def main():
     saveGrid.rowconfigure(2, weight=1)
     saveGrid.columnconfigure(2, weight=1)
    
+
+
+    # I graph page config
+    igraph_page = tabControl.add("Current Plot")
+    igraph_page.rowconfigure(10, weight=1)
+    igraph_page.columnconfigure(2, weight=1)
+
+    settings_grid = ctk.CTkFrame(igraph_page, corner_radius=10, width=100)
+    settings_grid.grid(row=1, column=1, padx=20)
+    settings_grid.rowconfigure(1, weight=1)
+    settings_grid.columnconfigure(0, weight=1)
+
+    ibutton_grid = ctk.CTkFrame(settings_grid,corner_radius=10)
+    ibutton_grid.grid(row=3,column=0,padx=20,pady=20)
+    ibutton_grid.rowconfigure(1, weight=1)
+    ibutton_grid.columnconfigure(2, weight=1)
+
+    make_igraph_button = ctk.CTkButton(ibutton_grid,text="Make Graph",command=make_igraph)
+    make_igraph_button.grid(row=0,column=0,pady=10,padx=10)
+   
+    filename = ctk.CTkEntry(saveGrid, width=300,placeholder_text="filename e.g. C:/Users/student/Desktop/run1.csv")
+    filename.grid(row=1,column=1,pady=10,padx=10)
+
+    igraph_grid = ctk.CTkFrame(igraph_page,corner_radius=10)
+    igraph_grid.grid(row=1,column=2,padx=10,pady=10)
+    igraph_grid.rowconfigure(1, weight=1)
+    igraph_grid.columnconfigure(2, weight=1)
+
+    isave_grid = ctk.CTkFrame(igraph_page,corner_radius=10)
+    isave_grid.grid(row=2,column=2,padx=10,pady=10)
+    isave_grid.rowconfigure(2, weight=1)
+    isave_grid.columnconfigure(2, weight=1)
+
+    isave_button = ctk.CTkButton(isave_grid,text="Save",command=isave_to_file)
+    isave_button.grid(row=1,column=2,pady=10,padx=10)
+    ifilename = ctk.CTkEntry(isave_grid, width=300,placeholder_text="filename e.g. C:/Users/student/Desktop/Ip.pdf")
+    ifilename.grid(row=1,column=1,pady=10,padx=10)
+
+    # rp
+    frameR_P = ctk.CTkFrame(settings_grid,width=500,height=50,corner_radius=10)
+    frameR_P.grid(row=0,column=0,padx=20,pady=50)
+    frameR_P.rowconfigure(0)
+    frameR_P.columnconfigure((0,1), weight=1)
+    Rp_lab = ctk.CTkLabel(frameR_P, text="R_p:",fg_color="grey", corner_radius=10, text_color="white")
+    Rp_lab.grid(row=0, column=0)
+    Rp = ctk.CTkEntry(frameR_P, width=100, placeholder_text="10000")
+    Rp.grid(row=0, column=1, padx=10, pady=10)
+    
+    # fontsize
+    frame_font = ctk.CTkFrame(settings_grid,width=500,height=50,corner_radius=10)
+    frame_font.grid(row=1,column=0,padx=20,pady=50)
+    frame_font.rowconfigure(0)
+    frame_font.columnconfigure((0,1), weight=1)
+    Fs_lab = ctk.CTkLabel(frame_font, text="Fontsize",fg_color="grey", corner_radius=10, text_color="white")
+    Fs_lab.grid(row=0, column=0)
+    Fs = ctk.CTkEntry(frame_font, width=100, placeholder_text="15")
+    Fs.grid(row=0, column=1, padx=10, pady=10)
+
+    # I_P
+    graphI_P = Figure(figsize=(3.5,3.5), dpi=100)
+    subI_P = graphI_P.add_subplot(111, xlabel="$\sqrt{V-V_s}$ ($\sqrt{V}$)", ylabel="$I_p$ (A)", )
+    subI_P.spines[['right', 'top']].set_visible(False)
+    graphI_P.set_layout_engine('constrained')
+    canvasI_P = FigureCanvasTkAgg(graphI_P, master=igraph_grid)
+    canvasI_P.draw()
+    canvasI_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)  
+   
+   # subV_P.plot(1,1)
+   # graphV_P.set_layout_engine('constrained')
+   # canvasV_P = FigureCanvasTkAgg(graphV_P, master=graphGrid)
+   # canvasV_P.draw()
+   # canvasV_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)  
+   ## V_S
+   # graphV_S = Figure(figsize=(3.5,3.5), dpi=100)
+   # subV_S = graphV_S.add_subplot(111, xlabel="$V-V_s$ (V)", ylabel="$V_s$ (V)", )
+   # subV_S.spines[['right', 'top']].set_visible(False)
+
+   # subV_S.plot(1,1)
+   # graphV_S.set_layout_engine('constrained')
+   # canvasV_S = FigureCanvasTkAgg(graphV_S, master=graphGrid)
+   # canvasV_S.draw()
+   # canvasV_S.get_tk_widget().grid(row=1,column=2,padx=10,pady=10)
+
+
+
+
+
+
    
     ''' Multimeter Page Configuration '''
     multimeterPage = tabControl.add("Multimeter Settings")
@@ -185,18 +331,30 @@ def main():
     multimeterSet.grid(row=0,column=0)
     multimeterSet.rowconfigure(2, weight=1)
     multimeterSet.columnconfigure(0, weight=1)
+
+
+
+
+
+
+
    
     ''' Graph Initialization '''
+    # V_P
     graphV_P = Figure(figsize=(3.5,3.5), dpi=100)
-    subV_P = graphV_P.add_subplot(111, xlabel="V - Vs (V)", ylabel="Vp (V)", )
+    subV_P = graphV_P.add_subplot(111, xlabel="$V-V_s$ (V)", ylabel="$V_p$ (V)", )
+    subV_P.spines[['right', 'top']].set_visible(False)
+
     subV_P.plot(1,1)
     graphV_P.set_layout_engine('constrained')
     canvasV_P = FigureCanvasTkAgg(graphV_P, master=graphGrid)
     canvasV_P.draw()
     canvasV_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)  
-   
+   # V_S
     graphV_S = Figure(figsize=(3.5,3.5), dpi=100)
-    subV_S = graphV_S.add_subplot(111, xlabel="V - Vs (V)", ylabel="VS (V)", )
+    subV_S = graphV_S.add_subplot(111, xlabel="$V-V_s$ (V)", ylabel="$V_s$ (V)", )
+    subV_S.spines[['right', 'top']].set_visible(False)
+
     subV_S.plot(1,1)
     graphV_S.set_layout_engine('constrained')
     canvasV_S = FigureCanvasTkAgg(graphV_S, master=graphGrid)
@@ -216,7 +374,7 @@ def main():
     saveButton = ctk.CTkButton(saveGrid,text="Save",command=saveToFile)
     saveButton.grid(row=1,column=2,pady=10,padx=10)
    
-    filename = ctk.CTkEntry(saveGrid, width=300,placeholder_text="Enter filename without filetype (saves to Desktop)")
+    filename = ctk.CTkEntry(saveGrid, width=300,placeholder_text="filename e.g. C:/Users/student/Desktop/run1.csv")
     filename.grid(row=1,column=1,pady=10,padx=10)
    
     ''' V_P Multimeter selection '''
