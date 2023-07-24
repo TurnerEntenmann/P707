@@ -1,11 +1,10 @@
 import customtkinter as ctk
 import numpy as np
-import pyvisa
-import csv
+import pyvisa, csv, os
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from customtkinter import filedialog
-from tkinter import messagebox
+from customtkinter import filedialog, CTkOptionMenu
+from tkinter import messagebox, StringVar, OptionMenu
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
@@ -26,6 +25,10 @@ def main():
     global tempData
     global sessionData
     global importData
+    # directory to save data in
+    global saving_dir
+    saving_dir = ""
+
     sessionData=[]
     importData=[]
     n_connections = len(resourceList)
@@ -51,44 +54,145 @@ def main():
                 temp.append(float(importData[i][j]))
             sessionData.append(temp)
         print(sessionData)
+
+    def make_dir():
+        global dir_name_entry, dir_name, dir_window, saving_dir
+        dir_name = dir_name_entry.get()
+        if dir_name in os.listdir():
+            messagebox.showerror("Name Error", f"{dir_name} Already exists, please use a different name")
+            dir_window.destroy()
+            startNew()
+        else:
+            os.makedirs(dir_name)
+            print("old saving dir", saving_dir)
+            print("original cwd", os.getcwd())
+            os.chdir(dir_name)
+            saving_dir = os.getcwd()
+            os.chdir("..")
+            print("new saving dir", saving_dir)
+            print("new cwd", os.getcwd())
+            dir_window.destroy()
+
+    def cancel_new_entry():
+        dir_window.destroy()
+        start_window()
        
     def startNew():
+        global dir_name_entry, dir_window
         firstWindow.destroy()
-       
+        dir_window = ctk.CTkToplevel(root)
+        dir_window.geometry("750x500")
+        dir_window.title("Create Folder")
+        dir_window.resizable(False,False)
+        dir_window.rowconfigure(1, weight=1)
+        dir_window.columnconfigure(1, weight=1)
+   
+        dir_grid = ctk.CTkFrame(dir_window,corner_radius=10)
+        dir_grid.grid(row=1,column=1,padx=100,pady=100)
+        dir_grid.rowconfigure(1, weight=1)
+        dir_grid.columnconfigure(1, weight=1)
+        dir_grid.rowconfigure(2, weight=1)
+        dir_grid.columnconfigure(2, weight=1)
+ 
+        dir_name_entry = ctk.CTkEntry(dir_grid, width=300,placeholder_text="Folder Name e.g. group1")
+        dir_name_entry.grid(row=0,column=0,pady=10,padx=10)
+
+        create_dir_but = ctk.CTkButton(dir_grid,text="Create",command=make_dir)
+        create_dir_but.grid(row=0,column=1,pady=10,padx=10)
+
+        cancel_but = ctk.CTkButton(dir_grid, text="Cancel", command=cancel_new_entry)
+        cancel_but.grid(row=1, column=0, pady=10, padx=10)
+
+
+    def choose_dir():
+        global selected, saving_dir, con_window
+        print("old saving dir", saving_dir)
+        print("original cwd", os.getcwd())
+        os.chdir(selected.get())
+        saving_dir = os.getcwd()
+        os.chdir("..")
+        print("new saving dir", saving_dir)
+        print("new cwd", os.getcwd())
+        con_window.destroy()
+
+
+
+    def choose_folder():
+        global selected
+        print(selected.get())
+
+
     def continueOld():
-        skip = True
-        global sessionData
-        global importData
-        root.filename = filedialog.askopenfilename(initialdir = '/Users/student/Desktop', title = "Select Directory to Save in")
-        with open(root.filename, newline='') as csvfile:
-            reader = csv.reader(csvfile)
-            for i in reader:
-                if skip:
-                    skip = False
-                    continue
-                importData.append(i)
-            fix()
-            graph()
+        global selected, con_window
         firstWindow.destroy()
-       
-    firstWindow = ctk.CTkToplevel(root)
-    firstWindow.geometry("500x250")
-    firstWindow.title("New or Returning User?")
-    firstWindow.resizable(False,False)
-    firstWindow.rowconfigure(1, weight=1)
-    firstWindow.columnconfigure(2, weight=1)
+        con_window = ctk.CTkToplevel(root)
+        con_window.geometry("500x500")
+        con_window.title("Select Folder")
+        con_window.resizable(False,False)
+        con_window.rowconfigure(1, weight=1)
+        con_window.columnconfigure(1, weight=1)
+
+        con_grid = ctk.CTkFrame(con_window,corner_radius=10)
+        con_grid.grid(row=1,column=1,padx=100,pady=100)
+        con_grid.rowconfigure(1, weight=1)
+        con_grid.columnconfigure(1, weight=1)
+        con_grid.rowconfigure(2, weight=1)
+        con_grid.columnconfigure(2, weight=1)
+
+        folder_list = os.listdir()
+
+        selected = StringVar()
+        selected.set(os.listdir()[0])
+        drop_menu = ctk.CTkOptionMenu(master=con_grid, variable=selected, values=folder_list)
+        drop_menu.grid(row=0, column=0, pady=10, padx=10)
+
+        choose_button = ctk.CTkButton(con_grid,text="Select Folder",command=choose_dir)
+        choose_button.grid(row=1, column=0, pady=10, padx=10)
+
+
+        #skip = True
+        #global sessionData
+        #global importData
+        #root.filename = filedialog.askopenfilename(initialdir = os.getcwd(), title = "Select Directory to Save in")
+        ## if a dir is selected
+        #if len(root.filename) > 0:
+        #    with open(root.filename, newline='') as csvfile:
+        #        reader = csv.reader(csvfile)
+        #        for i in reader:
+        #            if skip:
+        #                skip = False
+        #                continue
+        #            importData.append(i)
+        #        fix()
+        #        graph()
+        #    firstWindow.destroy()
+        ## if the operation is canceled
+        #else:
+        #    firstWindow.destroy()
+        #    start_window()
+
+
+    def start_window():
+        global firstWindow
+        firstWindow = ctk.CTkToplevel(root)
+        firstWindow.geometry("500x250")
+        firstWindow.title("New or Returning User?")
+        firstWindow.resizable(False,False)
+        firstWindow.rowconfigure(1, weight=1)
+        firstWindow.columnconfigure(2, weight=1)
    
-    firstGrid = ctk.CTkFrame(firstWindow,corner_radius=10)
-    firstGrid.grid(row=1,column=1,padx=100,pady=100)
-    firstGrid.rowconfigure(1, weight=1)
-    firstGrid.columnconfigure(1, weight=1)
+        firstGrid = ctk.CTkFrame(firstWindow,corner_radius=10)
+        firstGrid.grid(row=1,column=1,padx=100,pady=100)
+        firstGrid.rowconfigure(1, weight=1)
+        firstGrid.columnconfigure(1, weight=1)
    
-    startNewWindow = ctk.CTkButton(firstGrid,text="Start New Collection",command=startNew)
-    startNewWindow.grid(row=1,column=1,pady=10,padx=10)
+        startNewWindow = ctk.CTkButton(firstGrid,text="Start New Collection",command=startNew)
+        startNewWindow.grid(row=1,column=1,pady=10,padx=10)
    
-    continueOldWindow = ctk.CTkButton(firstGrid,text="Continue Old Collection",command=continueOld)
-    continueOldWindow.grid(row=1,column=2,pady=10,padx=10)
-   
+        continueOldWindow = ctk.CTkButton(firstGrid,text="Continue Old Collection",command=continueOld)
+        continueOldWindow.grid(row=1,column=2,pady=10,padx=10)
+    
+    start_window()
     ''' Functions '''
     def changeV_P(newV_P):
         global multimeterV_P
@@ -156,23 +260,21 @@ def main():
         canvasV_S.get_tk_widget().grid(row=1,column=2,padx=10,pady=10)
    
     def saveToFile():
-        global sessionData
+        global sessionData, saving_dir
         filevariable = filename.get()
         # force .csv
         if ".csv" not in filevariable:
             messagebox.showerror("File Type Error", "Make sure to include '.csv' in the filename")
         else:
-            # allows writing to other dirs
-            if "C:/" not in filevariable:
-                f = open(("C:/Users/student/Desktop/" + filevariable + ".csv"), 'w', newline='')
-            else:
-                f = open(filevariable + ".csv", "w", newline="")
+            os.chdir(saving_dir)
+            f = open(filevariable, 'w', newline='')
             writer = csv.writer(f)
             header = ["Vp", "Vs", "V - Vs"]
             writer.writerow(header)
             for i in range(len(sessionData)):
                 writer.writerow(sessionData[i])
             f.close()
+            os.chdir("..")
 
     # fxn for plotting
     def get_ax(figsize=(6,4), fsize=15):
