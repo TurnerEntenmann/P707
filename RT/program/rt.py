@@ -29,6 +29,8 @@ def main():
     global saving_dir
     saving_dir = ""
 
+    global fig
+
     sessionData=[]
     importData=[]
     n_connections = len(resourceList)
@@ -68,6 +70,8 @@ def main():
             print("original cwd", os.getcwd())
             os.chdir(dir_name)
             saving_dir = os.getcwd()
+            os.makedirs("plots")
+            os.makedirs("data")
             os.chdir("..")
             print("new saving dir", saving_dir)
             print("new cwd", os.getcwd())
@@ -115,12 +119,9 @@ def main():
         print("new cwd", os.getcwd())
         con_window.destroy()
 
-
-
     def choose_folder():
         global selected
         print(selected.get())
-
 
     def continueOld():
         global selected, con_window
@@ -170,7 +171,6 @@ def main():
         #else:
         #    firstWindow.destroy()
         #    start_window()
-
 
     def start_window():
         global firstWindow
@@ -264,9 +264,17 @@ def main():
         filevariable = filename.get()
         # force .csv
         if ".csv" not in filevariable:
-            messagebox.showerror("File Type Error", "Make sure to include '.csv' in the filename")
-        else:
-            os.chdir(saving_dir)
+            if "." in filevariable:
+                messagebox.showerror("File Type Error", "Make sure to save as a '.csv'")
+                return 0
+            else:
+                filevariable += ".csv"
+        data_dir = os.path.join(saving_dir, "data")
+        os.chdir(data_dir)
+        if filevariable in os.listdir():
+            messagebox.showerror("File Name Error", f"{filevariable} already exists, please use a different file name")
+            return 0
+        try:
             f = open(filevariable, 'w', newline='')
             writer = csv.writer(f)
             header = ["Vp", "Vs", "V - Vs"]
@@ -274,46 +282,65 @@ def main():
             for i in range(len(sessionData)):
                 writer.writerow(sessionData[i])
             f.close()
-            os.chdir("..")
+            messagebox.showinfo("", f"Data saved as\n\t{filevariable}\nIn\n\t{data_dir}")
+        except:
+            messagebox.showerror("File Type Error", f"Failed to write to {filevariable}\nMake sure to save with a valid finame")
+        os.chdir("..")
+        os.chdir("..")
 
-    # fxn for plotting
-    def get_ax(figsize=(6,4), fsize=15):
-        fig, ax = plt.subplots(figsize=figsize)
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-        return ax, fsize
 
-    #TODO: make_igraph
-    # isave_to_file
-    # button to gen graph
-    # make dir to collect data / figs
-
-    #global sessionData
-    #Vp = column(sessionData,0)
-    #Vs = column(sessionData,1)
-    #VVs = column(sessionData,2)
+    #TODO:
+    # placeholder Rp and Fs
+    # reset button
+    # hot and cold runs discrimination
+    # i plot hot and cold
+    # plot and T, find best T
 
     def make_igraph():
-        global sessionData
-        Vp = column(sessionData,0)
-        Vs = column(sessionData,1)
-        VVs = column(sessionData,2)
+        global sessionData, fig
+        Vp = np.array(column(sessionData,0))
+        Vs = np.array(column(sessionData,1))
+        VVs = np.array(column(sessionData,2))
 
-        rp = float(Rp.get())
-        fs = float()
-       
-        graphI_P = Figure(figsize=(3.5,3.5), dpi=100)
-        subI_P = graphI_P.add_subplot(111, xlabel="$V-V_s$ (V)", ylabel="$I_p$ (A)", fontsize=float(fs))
-        subI_P.spines[['right', 'top']].set_visible(False)
-
-        subI_P.plot(np.sqrt(VVs), Vp / rp)
-        graphI_P.set_layout_engine('constrained')
-        canvasI_P = FigureCanvasTkAgg(graphI_P, master=graphGrid)
+        try:
+            rp = float(Rp.get())
+            fs = float(Fs.get())
+        except ValueError as ve:
+            messagebox.showerror("Value Error", f"R_p and Fontsize must be numbers, please check their values")
+            return 0
+        
+        fig, ax = plt.subplots(figsize=(3.5,3.5), dpi=100)
+        ax.spines[['right', 'top']].set_visible(False)
+        ax.set_xlabel("$\sqrt{V-V_s}$ $(\sqrt{V})$", size=fs)
+        ax.set_ylabel("$I_p$ (A)", size=fs)
+        ax.tick_params(axis='both', which='major', labelsize=fs-2)
+        ax.plot(np.sqrt(VVs), Vp / rp)
+        fig.set_layout_engine("constrained")
+        canvasI_P = FigureCanvasTkAgg(fig, master=igraph_grid)
         canvasI_P.draw()
         canvasI_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)
+
    
     def isave_to_file():
-        pass
+        global saving_dir, fig
+        fname = ifilename.get()
+        if ".pdf" not in fname:
+            if "." in fname:
+                messagebox.showerror("File Type Error", "Make sure to save as a '.pdf'")
+                return 0
+            else:
+                fname += ".pdf"
+        plot_dir = os.path.join(saving_dir, "plots")
+        os.chdir(plot_dir)
+        try:
+            fig.savefig(fname)
+            messagebox.showinfo("", f"Plot saved as\n\t{fname}\nIn\n\t{plot_dir}")
+        except Exception as e:
+            print(e)
+            messagebox.showerror("File Type Error", f"Failed to write to {fname}\nMake sure to save with a valid finame")
+        os.chdir("..")
+        os.chdir("..")
+
 
     ''' Main Page Configuration '''
     mainPage = tabControl.add("Main Application")
@@ -381,8 +408,9 @@ def main():
     frameR_P.columnconfigure((0,1), weight=1)
     Rp_lab = ctk.CTkLabel(frameR_P, text="R_p:",fg_color="grey", corner_radius=10, text_color="white")
     Rp_lab.grid(row=0, column=0)
-    Rp = ctk.CTkEntry(frameR_P, width=100, placeholder_text="10000")
+    Rp = ctk.CTkEntry(frameR_P, width=100, placeholder_text="")
     Rp.grid(row=0, column=1, padx=10, pady=10)
+
     
     # fontsize
     frame_font = ctk.CTkFrame(settings_grid,width=500,height=50,corner_radius=10)
@@ -391,40 +419,20 @@ def main():
     frame_font.columnconfigure((0,1), weight=1)
     Fs_lab = ctk.CTkLabel(frame_font, text="Fontsize",fg_color="grey", corner_radius=10, text_color="white")
     Fs_lab.grid(row=0, column=0)
-    Fs = ctk.CTkEntry(frame_font, width=100, placeholder_text="15")
+    Fs = ctk.CTkEntry(frame_font, width=100, placeholder_text="")
     Fs.grid(row=0, column=1, padx=10, pady=10)
 
-    # I_P
-    graphI_P = Figure(figsize=(3.5,3.5), dpi=100)
-    subI_P = graphI_P.add_subplot(111, xlabel="$\sqrt{V-V_s}$ ($\sqrt{V}$)", ylabel="$I_p$ (A)", )
-    subI_P.spines[['right', 'top']].set_visible(False)
-    graphI_P.set_layout_engine('constrained')
-    canvasI_P = FigureCanvasTkAgg(graphI_P, master=igraph_grid)
+    fig, ax = plt.subplots(figsize=(3.5,3.5), dpi=100)
+    ax.spines[['right', 'top']].set_visible(False)
+    ax.set_xlabel("$\sqrt{V-V_s}$ $(\sqrt{V})$", size=15)
+    ax.set_ylabel("$I_p$ (A)", size=15)
+    ax.tick_params(axis='both', which='major', labelsize=13)
+    fig.set_layout_engine("constrained")
+    canvasI_P = FigureCanvasTkAgg(fig, master=igraph_grid)
     canvasI_P.draw()
-    canvasI_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)  
-   
-   # subV_P.plot(1,1)
-   # graphV_P.set_layout_engine('constrained')
-   # canvasV_P = FigureCanvasTkAgg(graphV_P, master=graphGrid)
-   # canvasV_P.draw()
-   # canvasV_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)  
-   ## V_S
-   # graphV_S = Figure(figsize=(3.5,3.5), dpi=100)
-   # subV_S = graphV_S.add_subplot(111, xlabel="$V-V_s$ (V)", ylabel="$V_s$ (V)", )
-   # subV_S.spines[['right', 'top']].set_visible(False)
-
-   # subV_S.plot(1,1)
-   # graphV_S.set_layout_engine('constrained')
-   # canvasV_S = FigureCanvasTkAgg(graphV_S, master=graphGrid)
-   # canvasV_S.draw()
-   # canvasV_S.get_tk_widget().grid(row=1,column=2,padx=10,pady=10)
+    canvasI_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)
 
 
-
-
-
-
-   
     ''' Multimeter Page Configuration '''
     multimeterPage = tabControl.add("Multimeter Settings")
     multimeterPage.rowconfigure(0, weight=1)
@@ -433,11 +441,6 @@ def main():
     multimeterSet.grid(row=0,column=0)
     multimeterSet.rowconfigure(2, weight=1)
     multimeterSet.columnconfigure(0, weight=1)
-
-
-
-
-
 
 
    
