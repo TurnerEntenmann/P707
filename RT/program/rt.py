@@ -30,6 +30,7 @@ def main():
     saving_dir = ""
 
     global fig
+    global hot_cold
 
     sessionData=[]
     importData=[]
@@ -106,7 +107,6 @@ def main():
 
         cancel_but = ctk.CTkButton(dir_grid, text="Cancel", command=cancel_new_entry)
         cancel_but.grid(row=1, column=0, pady=10, padx=10)
-
 
     def choose_dir():
         global selected, saving_dir, con_window
@@ -260,8 +260,8 @@ def main():
         canvasV_S.get_tk_widget().grid(row=1,column=2,padx=10,pady=10)
    
     def saveToFile():
-        global sessionData, saving_dir
-        filevariable = filename.get()
+        global sessionData, saving_dir, hot_cold
+        filevariable = hot_cold.get() +"_" + filename.get()
         # force .csv
         if ".csv" not in filevariable:
             if "." in filevariable:
@@ -290,21 +290,19 @@ def main():
 
 
     #TODO:
-    # placeholder Rp and Fs
-    # reset button
-    # hot and cold runs discrimination
     # i plot hot and cold
     # plot and T, find best T
+    # color buttons
 
     def make_igraph():
-        global sessionData, fig
+        global sessionData, fig, hot_cold
         Vp = np.array(column(sessionData,0))
         Vs = np.array(column(sessionData,1))
         VVs = np.array(column(sessionData,2))
 
         try:
-            rp = float(Rp.get())
-            fs = float(Fs.get())
+            rp = float(Rp_var.get())
+            fs = float(Fs_var.get())
         except ValueError as ve:
             messagebox.showerror("Value Error", f"R_p and Fontsize must be numbers, please check their values")
             return 0
@@ -312,9 +310,19 @@ def main():
         fig, ax = plt.subplots(figsize=(3.5,3.5), dpi=100)
         ax.spines[['right', 'top']].set_visible(False)
         ax.set_xlabel("$\sqrt{V-V_s}$ $(\sqrt{V})$", size=fs)
-        ax.set_ylabel("$I_p$ (A)", size=fs)
+        print(hot_cold.get())
+        if hot_cold.get() == "Hot":
+            y_lab = "$I_p$ (A)"
+        else:
+            y_lab = "$I_p^*$ (A)"
+        fig, ax = plt.subplots(figsize=(3.5,3.5), dpi=100)
+        ax.spines[['right', 'top']].set_visible(False)
+        ax.set_xlabel("$\sqrt{V-V_s}$ $(\sqrt{V})$", size=fs)
+        if hot_cold.get() == "Hot":
+            ax.set_ylabel("$I_p$ (A)", size=fs)
+        else:
+            ax.set_ylabel("$I_p^*$ (A)", size=fs)
         ax.tick_params(axis='both', which='major', labelsize=fs-2)
-        ax.plot(np.sqrt(VVs), Vp / rp)
         fig.set_layout_engine("constrained")
         canvasI_P = FigureCanvasTkAgg(fig, master=igraph_grid)
         canvasI_P.draw()
@@ -322,8 +330,8 @@ def main():
 
    
     def isave_to_file():
-        global saving_dir, fig
-        fname = ifilename.get()
+        global saving_dir, fig, hot_cold
+        fname = hot_cold.get() + "_" + ifilename.get()
         if ".pdf" not in fname:
             if "." in fname:
                 messagebox.showerror("File Type Error", "Make sure to save as a '.pdf'")
@@ -394,10 +402,15 @@ def main():
     isave_grid = ctk.CTkFrame(igraph_page,corner_radius=10)
     isave_grid.grid(row=2,column=2,padx=10,pady=10)
     isave_grid.rowconfigure(2, weight=1)
-    isave_grid.columnconfigure(2, weight=1)
+    isave_grid.columnconfigure(3, weight=1)
+
+    hot_cold = StringVar()
+    hot_cold.set("Hot")
+    i_hc_menu = ctk.CTkOptionMenu(master=isave_grid, variable=hot_cold, values=["Hot", "Cold"])
+    i_hc_menu.grid(row=1, column=2, pady=10, padx=10)
 
     isave_button = ctk.CTkButton(isave_grid,text="Save",command=isave_to_file)
-    isave_button.grid(row=1,column=2,pady=10,padx=10)
+    isave_button.grid(row=1,column=3,pady=10,padx=10)
     ifilename = ctk.CTkEntry(isave_grid, width=300,placeholder_text="filename e.g. C:/Users/student/Desktop/Ip.pdf")
     ifilename.grid(row=1,column=1,pady=10,padx=10)
 
@@ -406,10 +419,11 @@ def main():
     frameR_P.grid(row=0,column=0,padx=20,pady=50)
     frameR_P.rowconfigure(0)
     frameR_P.columnconfigure((0,1), weight=1)
+    Rp_var = ctk.StringVar(value="1000")
     Rp_lab = ctk.CTkLabel(frameR_P, text="R_p:",fg_color="grey", corner_radius=10, text_color="white")
     Rp_lab.grid(row=0, column=0)
-    Rp = ctk.CTkEntry(frameR_P, width=100, placeholder_text="")
-    Rp.grid(row=0, column=1, padx=10, pady=10)
+    Rp_ent = ctk.CTkEntry(frameR_P, width=100, placeholder_text="1000", textvariable=Rp_var)
+    Rp_ent.grid(row=0, column=1, padx=10, pady=10)
 
     
     # fontsize
@@ -417,9 +431,10 @@ def main():
     frame_font.grid(row=1,column=0,padx=20,pady=50)
     frame_font.rowconfigure(0)
     frame_font.columnconfigure((0,1), weight=1)
+    Fs_var = ctk.StringVar(value="15")
     Fs_lab = ctk.CTkLabel(frame_font, text="Fontsize",fg_color="grey", corner_radius=10, text_color="white")
     Fs_lab.grid(row=0, column=0)
-    Fs = ctk.CTkEntry(frame_font, width=100, placeholder_text="")
+    Fs = ctk.CTkEntry(frame_font, width=100, placeholder_text="15", textvariable=Fs_var)
     Fs.grid(row=0, column=1, padx=10, pady=10)
 
     fig, ax = plt.subplots(figsize=(3.5,3.5), dpi=100)
@@ -472,13 +487,25 @@ def main():
    
     appendButton = ctk.CTkButton(buttonGrid,text="Append",command=appendData)
     appendButton.grid(row=3,column=1,pady=10,padx=10)
-   
+
+    def reset():
+        global multimeterV_P, multimeterV_S, multimeterVV_S, sessionData
+        ans = messagebox.askquestion(message="Are you sure you want to reset your data?")
+        if ans == "yes":
+            sessionData=[]
+
+    reset_button = ctk.CTkButton(buttonGrid,text="Reset",command=reset)
+    reset_button.grid(row=4, column=1)
+
     dropdown = ctk.CTkOptionMenu(mainPage,values=colorTheme,command=changeTheme)
     dropdown.grid(row=10,column=1)
    
     saveButton = ctk.CTkButton(saveGrid,text="Save",command=saveToFile)
-    saveButton.grid(row=1,column=2,pady=10,padx=10)
+    saveButton.grid(row=1,column=3,pady=10,padx=10)
    
+    hc_menu = ctk.CTkOptionMenu(master=saveGrid, variable=hot_cold, values=["Hot", "Cold"])
+    hc_menu.grid(row=1, column=2, pady=10, padx=10)
+
     filename = ctk.CTkEntry(saveGrid, width=300,placeholder_text="filename e.g. C:/Users/student/Desktop/run1.csv")
     filename.grid(row=1,column=1,pady=10,padx=10)
    
