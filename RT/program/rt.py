@@ -10,6 +10,9 @@ from tkinter import messagebox, StringVar, OptionMenu
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 
+# TODO:
+    # clean up
+
 def main():
     ''' Initializations '''
     ctk.set_default_color_theme("dark-blue")
@@ -34,15 +37,15 @@ def main():
     global fig, tfig, dfig
     global hot_cold
     global avail_csvs
-    global hot_csv, cold_csv, tfilename, tFs_ent, tRp_var
+    global hot_csv, cold_csv, tfilename, tFs_ent, tRp_var, tsig_var, tline_var, dline_var
 
     sessionData=[]
     importData=[]
     n_connections = len(resourceList)
     if n_connections != 3:
         messagebox.showerror("Connection Error", f"3 Connections Required\n{n_connections} Detected\n\nMake sure all multimeters are powered on and plugged in")
-        # TODO: comment out
-        # return 0
+        # comment out below line to debug without needing connections
+        return 0
     else:
         multimeterV_P = pyvisa.ResourceManager().open_resource(resourceList[0])
         multimeterV_P.write('DISP:TEXT "V_P"')
@@ -69,7 +72,6 @@ def main():
             for j in range(len(importData[i])):
                 temp.append(float(importData[i][j]))
             sessionData.append(temp)
-        print(sessionData)
 
     def make_dir():
         global dir_name_entry, dir_name, dir_window, saving_dir
@@ -80,15 +82,11 @@ def main():
             startNew()
         else:
             os.makedirs(dir_name)
-            print("old saving dir", saving_dir)
-            print("original cwd", os.getcwd())
             os.chdir(dir_name)
             saving_dir = os.getcwd()
             os.makedirs("plots")
             os.makedirs("data")
             os.chdir("..")
-            print("new saving dir", saving_dir)
-            print("new cwd", os.getcwd())
             dir_window.destroy()
 
     def cancel_new_entry():
@@ -123,13 +121,9 @@ def main():
 
     def choose_dir():
         global selected, saving_dir, con_window
-        print("old saving dir", saving_dir)
-        print("original cwd", os.getcwd())
         os.chdir(selected.get())
         saving_dir = os.getcwd()
         os.chdir("..")
-        print("new saving dir", saving_dir)
-        print("new cwd", os.getcwd())
         populate_csv_menu()
         con_window.destroy()
 
@@ -279,11 +273,6 @@ def main():
 
     def round_sig(x, sig=2):
         return round(x, sig-int(floor(log10(abs(x))))-1)
-    #TODO:
-    # i plot hot and cold, T plot
-        # customization
-        # error handeling eg not selecting files to plot
-    # color buttons
 
     def make_igraph():
         global sessionData, fig, hot_cold
@@ -301,7 +290,6 @@ def main():
         fig, ax = plt.subplots(figsize=(3.5,3.5), dpi=100)
         ax.spines[['right', 'top']].set_visible(False)
         ax.set_xlabel("$\sqrt{V-V_s}$ $(\sqrt{V})$", size=fs)
-        print(hot_cold.get())
         if hot_cold.get() == "Hot":
             y_lab = "$I_p$ (A)"
         else:
@@ -319,7 +307,6 @@ def main():
         canvasI_P.draw()
         canvasI_P.get_tk_widget().grid(row=1,column=1,padx=10,pady=10)
 
-   
     def isave_to_file():
         global saving_dir, fig, hot_cold
         fname = hot_cold.get() + "_" + ifilename.get()
@@ -335,7 +322,6 @@ def main():
             fig.savefig(fname)
             messagebox.showinfo("", f"Plot saved as\n\t{fname}\nIn\n\t{plot_dir}")
         except Exception as e:
-            print(e)
             messagebox.showerror("File Type Error", f"Failed to write to {fname}\nMake sure to save with a valid finame")
         os.chdir("..")
         os.chdir("..")
@@ -431,10 +417,19 @@ def main():
 
 
     def make_tgraph():
-        global hot_csv, cold_csv, tfilename, tfig, tFs_ent, dfig, tRp_var        
-        
-        sig_figs = 3
-        
+        global hot_csv, cold_csv, tfilename, tfig, tFs_ent, dfig, tRp_var, tsig_var, talph_var, dline_var
+        try:
+            sig_figs = int(tsig_var.get())
+        except:
+            messagebox.showerror("Value Error", f"Sig Fig must be a positive integer, please check its values")
+            return 0
+        if len(hot_csv.get()) == 0:
+            messagebox.showerror("File Error", f"Please select a dataset as the room temperature data")
+            return 0
+        if len(cold_csv.get()) == 0:
+            messagebox.showerror("File Error", f"Please select a dataset as the cold temperature data")
+            return 0
+
         hot_path = os.path.join(saving_dir, "data", hot_csv.get())
         hot_df = pd.read_csv(hot_path)
         cold_path = os.path.join(saving_dir, "data", cold_csv.get())
@@ -453,13 +448,16 @@ def main():
         hot_df["Ip"] = hot_df["Vp"] / drp
         cold_df["Ip"] = cold_df["Vp"] / drp
 
+        tls = tline_var.get()
+        dls = dline_var.get()
+
         tfig, tax = plt.subplots(figsize=(3.5,3.5), dpi=100)
         tax.spines[['right', 'top']].set_visible(False)
 
         plt.plot(hot_df["V - Vs"], T*100, c="0", markersize=fsize-5, marker=".")
 
         x_max = hot_df["V - Vs"][np.argmax(T)]
-        tax.vlines(x_max, 0, np.max(T)*100, color="r")
+        tax.vlines(x_max, 0, np.max(T)*100, color="r", linestyle=tls)
         x_max_r = round_sig(x_max, sig_figs)
 
         T_max_r = round_sig(round_sig(np.max(T), sig_figs) * 100, sig_figs)
@@ -479,7 +477,7 @@ def main():
         dfig, dax = plt.subplots(figsize=(3.5,3.5), dpi=100)
 
         plt.plot(np.sqrt(hot_df["V - Vs"]), hot_df["Ip"]*10**6, c="0", markersize=fsize-5, marker=".", label="$I_p$")
-        plt.plot(np.sqrt(cold_df["V - Vs"]), cold_df["Ip"]*10**6, c="r", markersize=fsize-5, marker=".", label="$I_p^*$")
+        plt.plot(np.sqrt(cold_df["V - Vs"]), cold_df["Ip"]*10**6, c="r", markersize=fsize-5, marker=".", label="$I_p^*$", linestyle=dls)
 
 
         dax.spines[['right', 'top']].set_visible(False)
@@ -492,14 +490,19 @@ def main():
         canvas_d = FigureCanvasTkAgg(dfig, master=tgraph_page)
         canvas_d.draw()
         canvas_d.get_tk_widget().grid(row=2,column=2,padx=10,pady=10)
-
-     # double I graph page config
     
 
     def save_tgraph():
         global saving_dir, tfig, dfig
         tfname = tfilename.get()
         dfname = dfilename.get()
+        if len(tfname) == 0:
+            messagebox.showerror("File Error", f"Please give the transmission plot a name")
+            return 0
+        if len(dfname) == 0:
+            messagebox.showerror("File Error", f"Please give the current plot a name")
+            return 0
+
         if ".pdf" not in tfname:
             if "." in tfname:
                 messagebox.showerror("File Type Error", f"{tfname} is not a valid file name\nMake sure to save as a '.pdf'")
@@ -516,12 +519,12 @@ def main():
         os.chdir(plot_dir)
         try:
             tfig.savefig(tfname)
-            messagebox.showinfo("", f"Plot saved as\n\t{tfname}\nIn\n\t{plot_dir}")
+            messagebox.showinfo("", f"Transmission plot saved as\n\t{tfname}\nIn\n\t{plot_dir}")
         except Exception as e:
             messagebox.showerror("File Type Error", f"Failed to write to {tfname}\nMake sure to save with a valid filename")
         try:
             dfig.savefig(dfname)
-            messagebox.showinfo("", f"Plot saved as\n\t{dfname}\nIn\n\t{plot_dir}")
+            messagebox.showinfo("", f"Current plot saved as\n\t{dfname}\nIn\n\t{plot_dir}")
         except Exception as e:
             messagebox.showerror("File Type Error", f"Failed to write to {dfname}\nMake sure to save with a valid filename")
         os.chdir("..")
@@ -551,7 +554,7 @@ def main():
 
     # transmission rp
     t_frameR_P = ctk.CTkFrame(tsettings_grid,width=500,height=50,corner_radius=10)
-    t_frameR_P.grid(row=0,column=0,padx=20,pady=50)
+    t_frameR_P.grid(row=0,column=0,padx=20,pady=20)
     t_frameR_P.rowconfigure(0)
     t_frameR_P.columnconfigure((0,1), weight=1)
     tRp_var = ctk.StringVar(value="10000")
@@ -560,10 +563,21 @@ def main():
     tRp_ent = ctk.CTkEntry(t_frameR_P, width=100, placeholder_text="1000", textvariable=tRp_var)
     tRp_ent.grid(row=0, column=1, padx=10, pady=10)
 
-    
+    # sigfigs
+    tframe_sig = ctk.CTkFrame(tsettings_grid,width=500,height=50,corner_radius=10)
+    tframe_sig.grid(row=1,column=0,padx=20,pady=20)
+    tframe_sig.rowconfigure(0)
+    tframe_sig.columnconfigure((0,1), weight=1)
+    tsig_var = ctk.StringVar(value="3")
+    tsig_lab = ctk.CTkLabel(tframe_sig, text="Sig Figs",fg_color="grey", corner_radius=10, text_color="white")
+    tsig_lab.grid(row=0, column=0)
+    tsig_ent = ctk.CTkEntry(tframe_sig, width=100, placeholder_text="3", textvariable=tsig_var)
+    tsig_ent.grid(row=0, column=1, padx=10, pady=10)
+
+
     # fontsize
     tframe_font = ctk.CTkFrame(tsettings_grid,width=500,height=50,corner_radius=10)
-    tframe_font.grid(row=1,column=0,padx=20,pady=50)
+    tframe_font.grid(row=2,column=0,padx=20,pady=20)
     tframe_font.rowconfigure(0)
     tframe_font.columnconfigure((0,1), weight=1)
     tFs_var = ctk.StringVar(value="15")
@@ -572,6 +586,30 @@ def main():
     tFs_ent = ctk.CTkEntry(tframe_font, width=100, placeholder_text="15", textvariable=tFs_var)
     tFs_ent.grid(row=0, column=1, padx=10, pady=10)
 
+    # t linestyle
+    tframe_line = ctk.CTkFrame(tsettings_grid,width=500,height=50,corner_radius=10)
+    tframe_line.grid(row=3,column=0,padx=20,pady=20)
+    tframe_line.rowconfigure(0)
+    tframe_line.columnconfigure((0,1), weight=1)
+    linestyle_list = ["solid", "dotted", "dashed", "dashdot"]
+    tline_var = ctk.StringVar(value=linestyle_list[0])
+    tline_lab = ctk.CTkLabel(tframe_line, text="Transmission Plot Line Style",fg_color="grey", corner_radius=10, text_color="white")
+    tline_lab.grid(row=0, column=0)
+    tline_menu = ctk.CTkOptionMenu(master=tframe_line, variable=tline_var, values=linestyle_list)
+    tline_menu.grid(row=0, column=1, padx=10, pady=10)
+
+    # d linestyle
+    dframe_line = ctk.CTkFrame(tsettings_grid,width=500,height=50,corner_radius=10)
+    dframe_line.grid(row=4,column=0,padx=20,pady=20)
+    dframe_line.rowconfigure(0)
+    dframe_line.columnconfigure((0,1), weight=1)
+    dline_var = ctk.StringVar(value=linestyle_list[0])
+    dline_lab = ctk.CTkLabel(dframe_line, text="Current Plot Line Style",fg_color="grey", corner_radius=10, text_color="white")
+    dline_lab.grid(row=0, column=0)
+    dline_menu = ctk.CTkOptionMenu(master=dframe_line, variable=dline_var, values=linestyle_list)
+    dline_menu.grid(row=0, column=1, padx=10, pady=10)
+   
+
     tmake_frame = ctk.CTkFrame(tgraph_page, corner_radius=10, width=100)
     tmake_frame.grid(row=1, column=3, padx=20)
     tmake_frame.rowconfigure(1, weight=1)
@@ -579,11 +617,11 @@ def main():
 
     # draw button
     make_igraph_button = ctk.CTkButton(tsettings_grid,text="Draw Graphs",command=make_tgraph)
-    make_igraph_button.grid(row=2,column=0,pady=10,padx=10)
+    make_igraph_button.grid(row=5,column=0,pady=10,padx=10)
 
     # hot csv
     hcsv_frame = ctk.CTkFrame(tmake_frame,width=500,height=50,corner_radius=10)
-    hcsv_frame.grid(row=1,column=0,padx=20,pady=50)
+    hcsv_frame.grid(row=1,column=0,padx=20,pady=20)
     hcsv_frame.rowconfigure(0)
     hcsv_frame.columnconfigure((0,1), weight=1)
     hcsv_lab = ctk.CTkLabel(hcsv_frame, text="Hot csv File:",fg_color="grey", corner_radius=10, text_color="white")
@@ -597,7 +635,7 @@ def main():
 
     # cold csv
     ccsv_frame = ctk.CTkFrame(tmake_frame,width=500,height=50,corner_radius=10)
-    ccsv_frame.grid(row=2,column=0,padx=20,pady=50)
+    ccsv_frame.grid(row=2,column=0,padx=20,pady=20)
     ccsv_frame.rowconfigure(0)
     ccsv_frame.columnconfigure((0,1), weight=1)
     ccsv_lab = ctk.CTkLabel(ccsv_frame, text="Cold csv File:",fg_color="grey", corner_radius=10, text_color="white")
@@ -609,10 +647,10 @@ def main():
 
     # file name entry
     tfilename = ctk.CTkEntry(tmake_frame, width=300,placeholder_text="Transmission Plot Filename")
-    tfilename.grid(row=3,column=0,pady=10,padx=10)
+    tfilename.grid(row=3,column=0,pady=20,padx=10)
 
     dfilename = ctk.CTkEntry(tmake_frame, width=300,placeholder_text="Double Current Plot Filename")
-    dfilename.grid(row=4,column=0,pady=10,padx=10)
+    dfilename.grid(row=4,column=0,pady=20,padx=10)
 
     # make graph buttion
     tbutton_grid = ctk.CTkFrame(tmake_frame,corner_radius=10)
